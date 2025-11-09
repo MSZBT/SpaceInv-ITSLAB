@@ -1,0 +1,70 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.blk {
+    width: 80%;
+    min-height: 50px;
+    background-color: rgb(200, 200, 200);
+    margin: 10px;
+
+    border-radius: 5px;
+}
+
+.controlSizeBlock {
+    margin-top: 150px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
+
+    padding: 10px;
+}
+
+.controlSizeBlock form {
+    margin-bottom: 20px;
+}
+
+.controlSizeBlock form input {
+    max-width: 50px;
+}
+
+.getButton {
+    width: 150px;
+    height: 30px;
+    transition: 0.2s;
+
+    border: none;
+}
+
+.getButton:hover {
+    transform: scale(1.1);
+    cursor: pointer;
+
+    background-color: brown;
+    color: white;
+}
+
+.mainBlock {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.line {
+    display: flex;
+}
+.node {
+    margin: 2px;
+    border: 1px solid black;
+    background-color: white;
+}
+
+.copyBlock {
+    padding: 10px;
+    text-align: center;
+}
