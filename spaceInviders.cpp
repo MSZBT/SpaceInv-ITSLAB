@@ -7,14 +7,55 @@
 /*Матрицы для отрисовки все 8 на 8*/
 
 /*Пуля Игрока*/
+const uint8_t EMO_PLAYER[] {
+    0b11111111, 
+    0b11111111, 
+    0b11100111, 
+    0b11010011, 
+    0b11001011, 
+    0b11010011, 
+    0b11000011, 
+    0b11111111, 
+}
 
 /*Пуля противника*/
+const uint8_t EMO_ENEMY[] {
+    0b11111111, 
+    0b11111111, 
+    0b11100111, 
+    0b11001011, 
+    0b11010011, 
+    0b11100111, 
+    0b11111111, 
+    0b11111111, 
+}
 
 /*Игрок */
+const uint8_t PLAYER[] = {
+    0b11111111, 
+    0b11100111, 
+    0b01100110, 
+    0b01011010, 
+    0b01011010, 
+    0b00000000, 
+    0b10000001, 
+    0b10011001, 
+}
 
 /*Противник кадр 1*/
+const uint8_t ENEMY_1[] = {
+    0b10111101, 
+    0b11011011, 
+    0b11000011, 
+    0b10100101, 
+    0b00000000, 
+    0b01000010, 
+    0b01011010, 
+    0b11100111, 
+};
 
 /*Противник кадр 2*/
+
 
 /*Ячейка игрового поля для противника*/
 typedef struct enemy_cell {
@@ -37,7 +78,7 @@ typedef struct player_cell {
 } player_cell;
 
 /*Класс поля для рендеринга и получения информации о нахождении объекта в ячейке*/
-class play_field {
+class Play_field {
 private:
     /*размеры в колоннах и строках*/
     static const uint8_t player_row = 1;
@@ -45,13 +86,13 @@ private:
     static const uint8_t enemy_row = 6;
     static const uint8_t enemy_col = 11;
 
-    
+
     /*Масиивы перемещения */
     player_cell array_player_cell[player_col];
     enemy_cell array_enemy_cell[enemy_row][enemy_col]; 
 public:
     /*инициализация массивов перемещения*/
-    play_field() {
+    Play_field() {
         init_player_array();
         init_enemy_array();
     }
@@ -138,6 +179,88 @@ public:
         }
     }
 }
+
+/*класс игпока*/
+class Player {
+private:
+    /*основные параметры*/
+    uint8_t index_inarray;
+    int lives;
+    bool shooting_flag;
+
+    /*логические характеристики для движения и стрельбы*/
+    bool button_is_tate;
+    bool button_ls;
+    bool button_rs;
+
+    /*указатель на игровое поле*/
+    Play_field *field; 
+
+    /*конструктор класса чтобы регулировать параметры игры*/
+    Player(uint8_t index_inarray = 3, uint8_t lives = 3, bool shooting_flag = true, Play_field *field = nullptr) 
+        : index_inarray(index_inarray), lives(lives), shooting_flag(shooting_flag), field(field) {}
+public:
+    /*движение*/
+    void move() {
+        /*перемещение вправо*/
+        if(!digitalRead(PIN_R) && !buttonIState && index_inarray != 10){
+            buttonIState = true;
+            index_inarray++;
+
+            field->set_player_in_cell(index_inarray);
+        } else buttonIState = false;
+
+        /*перемещение влево*/
+        if(!digitalRead(PIN_L) && !buttonIState && index_inarray != 0){
+            buttonIState = true;
+            index_inarray--;
+
+            field->set_player_in_cell(index_inarray);
+        } else buttonIState = false;
+    };
+
+    /*стрельба*/
+    void shoot() {
+
+    }
+
+    /*проверка на количество жизней и обработка попаданий*/
+    bool check_lives() {
+        return lives > 0 ? true : false; 
+        /*true - продолжается игра*/
+        /*flase - конец игры*/
+        /*использовать в основном цикле игры*/
+    }
+
+    /*проверка на возможность открыть огонь*/
+    void check_shooting() {
+        /*возможность стрелять условно в 3 секнды*/
+    }
+}
+
+class Enemy {
+private:
+    /*основные параметры*/
+    bool visibility;
+    bool fire_flag;
+
+    uint8_t x;
+    uint8_t y;
+    Play_field *field; 
+
+    Enemy(bool visibility = true, bool fire_flag = true, Play_field *field = nullptr)
+        : x(x), y(y), visibility(visibility), fire_flag(fire_flag), field(field) {}
+public:
+    /*движение*/
+    void move(uint8_t x_new, uint8_t y_new) {
+        field->set_enemy_in_cell(x_new, y_new, x, y, this);
+    }
+
+    void fire() {
+        /*создание объектов-пулек*/
+    }
+}
+
 
 int main(void) {
     return 0;
