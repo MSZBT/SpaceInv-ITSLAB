@@ -7,7 +7,7 @@
 /*Матрицы для отрисовки все 8 на 8*/
 
 /*Пуля Игрока*/
-const uint8_t EMO_PLAYER[] {
+const uint8_t EMO_PLAYER[] = {
     0b11111111, 
     0b11111111, 
     0b11100111, 
@@ -16,10 +16,10 @@ const uint8_t EMO_PLAYER[] {
     0b11010011, 
     0b11000011, 
     0b11111111, 
-}
+};
 
 /*Пуля противника*/
-const uint8_t EMO_ENEMY[] {
+const uint8_t EMO_ENEMY[] = {
     0b11111111, 
     0b11111111, 
     0b11100111, 
@@ -28,7 +28,7 @@ const uint8_t EMO_ENEMY[] {
     0b11100111, 
     0b11111111, 
     0b11111111, 
-}
+};
 
 /*Игрок */
 const uint8_t PLAYER[] = {
@@ -40,7 +40,7 @@ const uint8_t PLAYER[] = {
     0b00000000, 
     0b10000001, 
     0b10011001, 
-}
+};
 
 /*Противник кадр 1*/
 const uint8_t ENEMY_1[] = {
@@ -178,7 +178,7 @@ public:
             }
         }
     }
-}
+};
 
 /*класс игпока*/
 class Player {
@@ -197,9 +197,11 @@ private:
     Play_field *field; 
 
     /*конструктор класса чтобы регулировать параметры игры*/
+    
+public:
     Player(uint8_t index_inarray = 3, uint8_t lives = 3, bool shooting_flag = true, Play_field *field = nullptr) 
         : index_inarray(index_inarray), lives(lives), shooting_flag(shooting_flag), field(field) {}
-public:
+
     /*движение*/
     void move() {
         /*перемещение вправо*/
@@ -224,6 +226,10 @@ public:
 
     }
 
+    void update_lives() {
+        lives--;
+    }
+
     /*проверка на количество жизней и обработка попаданий*/
     bool check_lives() {
         return lives > 0 ? true : false; 
@@ -236,7 +242,7 @@ public:
     void check_shooting() {
         /*возможность стрелять условно в 3 секнды*/
     }
-}
+};
 
 class Enemy {
 private:
@@ -244,23 +250,121 @@ private:
     bool visibility;
     bool fire_flag;
 
-    uint8_t x;
-    uint8_t y;
+    uint8_t x_cell;
+    uint8_t y_cell;
     Play_field *field; 
 
+public:
     Enemy(bool visibility = true, bool fire_flag = true, Play_field *field = nullptr)
         : x(x), y(y), visibility(visibility), fire_flag(fire_flag), field(field) {}
-public:
+
     /*движение*/
     void move(uint8_t x_new, uint8_t y_new) {
-        field->set_enemy_in_cell(x_new, y_new, x, y, this);
+        field->set_enemy_in_cell(x_new, y_new, x_cell, y_cell, this);
     }
 
     void fire() {
         /*создание объектов-пулек*/
     }
-}
 
+    bool isVisible() {
+        return visibility;
+    }
+
+    bool flag_update() {
+        visibility = !visibility;
+    }
+};
+
+class Bullet_player {
+private:
+    uint8_t x_cell;/*присваивается при вытсреле и не меняет траектории*/
+    uint8_t y;
+    uint8_t speed;
+    bool active;
+
+    Play_field *field; 
+
+public:
+    Bullet_player(uint8_t x_cell, uint8_t y, uint8_t speed, bool active, Play_field *field = nullptr)
+    : x_cell(x_cell), y(y), speed(speed), active(active), field(field) {}
+
+    void check_cell() {
+        if (!active) return;
+        if (y == 8 || y == 17 || y == 26 || y == 35 || y == 44 || y == 53) {
+            uint8_t enemy_y = y / 9;
+            
+            Enemy *tmp_enemy = field->get_enemy_from_cell(x_cell, enemy_y);
+            if (tmp_enemy != nullptr && tmp_enemy->isVisible()) {
+                tmp_enemy->flag_update();
+                destroy();
+            }
+        }
+    }
+
+    void show() {
+        if (!active) return;
+        u8g2.drawXBMP(x_cell, y, 8, 8, EMO_PLAYER);
+    }
+
+    void move() {
+        if (!active) return;
+            y -= speed;
+            check_cell();
+        if (y <= 0) {
+            destroy();
+        }
+    }
+
+    void destroy() {
+        active = false;
+    }
+};
+
+class Bullet_enemy {
+private:
+    uint8_t x_cell;/*присваивается при вытсреле и не меняет траектории*/
+    uint8_t y;
+    uint8_t speed;
+    bool active;
+
+    Play_field *field; 
+    Player *player;
+
+public:
+    Bullet_enemy(uint8_t x_cell, uint8_t y, uint8_t speed, bool active, Play_field *field = nullptr, Player *player_ptr = nullptr)
+    : x_cell(x_cell), y(y), speed(speed), active(active), field(field), player(player_ptr) {}
+
+    void check_cell() {
+        if (!active) return;
+        if (y == 54) {
+            uint8_t enemy_y = y / 9;
+            
+            if (field->getPlayerPosition() == x_cell) {
+                player->update_lives();
+                destroy();
+            }
+        }
+    }
+
+    void show() {
+        if (!active) return;
+        u8g2.drawXBMP(x_cell, y, 8, 8, EMO_ENEMY);
+    }
+
+    void move() {
+        if (!active) return;
+            y += speed;
+            check_cell();
+        if (y >= 64) {
+            destroy();
+        }
+    }
+
+    void destroy() {
+        active = false;
+    }
+};
 
 int main(void) {
     return 0;
