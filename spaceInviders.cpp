@@ -2,8 +2,10 @@
 #include<U8g2lib.h>
 #include<SPI.h>
 
-#define LEFT 15;
-#define RIGHT 113;
+#define LEFT 15
+#define RIGHT 113
+#define SPEED_BULLET_PLAYER 8
+#define SPEED_BULLET_ENEMY 6
 /*Матрицы для отрисовки все 8 на 8*/
 
 /*Пуля Игрока*/
@@ -73,7 +75,7 @@ typedef struct player_cell {
     uint8_t y;
     bool include_player;
 
-    player_cell(uint8_t x = 0, uint8_t y = 0, bool include_enemy = false, enemy* enemy_ptr = nullptr) 
+    player_cell(uint8_t x = 0, uint8_t y = 0, bool include_player = false, Enemy* enemy_ptr = nullptr) 
         : x(x), y(y), include_player(include_player) {}
 } player_cell;
 
@@ -85,6 +87,8 @@ private:
     static const uint8_t player_col = 11;
     static const uint8_t enemy_row = 6;
     static const uint8_t enemy_col = 11;
+
+    bool game_flag = true;
 
 
     /*Масиивы перемещения */
@@ -127,9 +131,8 @@ public:
 
 
     /*установить противника в ячейку*/
-    void set_enemy_in_cell(uint8_t x, uint8_t y, uint8_t x_from, uint8_t y_from, enemy *enemy_pointer) {
+    void set_enemy_in_cell(uint8_t x, uint8_t y, enemy *enemy_pointer) {
         array_enemy_cell[x][y].enemy_pointer = enemy_pointer;
-        array_enemy_cell[x_from][y_from].enemy_pointer = nullptr;
     }
 
 
@@ -143,19 +146,12 @@ public:
 
 
     /*получить противника обработки попадания*/
-    enemy* get_enemy_from_cell(uint8_t x, uint8_t y) {
+    Enemy* get_enemy_from_cell(uint8_t x, uint8_t y) {
         if (x < enemy_row && y < enemy_col) {
             return array_enemy_cell[x][y].enemy_pointer;
         }
         return nullptr;
     }
-
-
-    void draw_field() {
-        draw_enemies();
-        draw_player();
-    }
-
 
     /*отрисовка вргаов*/
     void draw_enemies() {
@@ -178,6 +174,28 @@ public:
             }
         }
     }
+
+    void clear_enemy_field() {
+        for (int y = 0; y < enemy_row; y++) {
+            for (int x = 0; x < enemy_col; x++) {
+                array_enemy_cell[y][x].enemy_pointer = nullptr;
+            }
+        }
+    }
+
+    void kill_game() {
+        game_flag = false;
+    }
+
+    bool get_game_status() {
+        return game_flag;
+    }
+
+    /*ОСНОВНОЙ МЕТОД РАБОТЫ*/
+    void draw_field() {
+        draw_enemies();
+        draw_player();
+    }
 };
 
 /*класс игпока*/
@@ -196,11 +214,15 @@ private:
     /*указатель на игровое поле*/
     Play_field *field; 
 
+    BulletManager* bullet_manager;
+
     /*конструктор класса чтобы регулировать параметры игры*/
     
 public:
-    Player(uint8_t index_inarray = 3, uint8_t lives = 3, bool shooting_flag = true, Play_field *field = nullptr) 
-        : index_inarray(index_inarray), lives(lives), shooting_flag(shooting_flag), field(field) {}
+    Player(uint8_t index_inarray = 3, uint8_t lives = 3, bool shooting_flag = true, 
+           Play_field* field = nullptr, BulletManager* bullet_mgr = nullptr) 
+        : index_inarray(index_inarray), lives(lives), shooting_flag(shooting_flag), 
+          field(field), bullet_manager(bullet_mgr) {}
 
     /*движение*/
     void move() {
@@ -223,7 +245,11 @@ public:
 
     /*стрельба*/
     void shoot() {
-
+        if(!digitalRead(PIN_FIRE) && !buttonIState && bullet_manager) {
+            buttonIState = true;
+            bullet_manager->createPlayerBullet(index_inarray, LEFT + index_inarray * 9 + 4, 60, SPEED_BULLET_PLAYER, field);
+        }
+        buttonIState = false;
     }
 
     void update_lives() {
@@ -239,8 +265,14 @@ public:
     }
 
     /*проверка на возможность открыть огонь*/
-    void check_shooting() {
-        /*возможность стрелять условно в 3 секнды*/
+    /*возможность стрелять условно в 3 секнды*/
+    /*void check_shooting() {
+        
+    }*/
+
+    void processing_player() {
+        move();
+        shot();
     }
 };
 
@@ -254,17 +286,22 @@ private:
     uint8_t y_cell;
     Play_field *field; 
 
+    Player *player;
+
 public:
-    Enemy(bool visibility = true, bool fire_flag = true, Play_field *field = nullptr)
-        : x(x), y(y), visibility(visibility), fire_flag(fire_flag), field(field) {}
+    Enemy(bool visibility = true, bool fire_flag = true, Play_field *field = nullptr, Player *player_ptr = nullptr)
+        : x(x), y(y), visibility(visibility), fire_flag(fire_flag), field(field), player(player_ptr) {}
 
     /*движение*/
     void move(uint8_t x_new, uint8_t y_new) {
-        field->set_enemy_in_cell(x_new, y_new, x_cell, y_cell, this);
+        field->set_enemy_in_cell(x_new, y_new, this);
     }
 
     void fire() {
         /*создание объектов-пулек*/
+        /*ФУНКЦИЯ ПО ВРЕМЕНИ*/
+        Bullet_player(x_cell, LEFT + x_cell * 9 + 4, y_cell * 9 + 4, SPEED_BULLET_ENEMY, true, field, player);
+        
     }
 
     bool isVisible() {
@@ -273,12 +310,95 @@ public:
 
     bool flag_update() {
         visibility = !visibility;
+        fire_flag = false;
+    }
+};
+
+
+class BulletManager {
+private:
+    static const uint8_t MAX_PLAYER_BULLETS = 3;
+    static const uint8_t MAX_ENEMY_BULLETS = 10;
+    
+    Bullet_player player_bullets[MAX_PLAYER_BULLETS];
+    Bullet_enemy enemy_bullets[MAX_ENEMY_BULLETS];
+    
+public:
+    BulletManager() {
+        // Инициализация пуль как неактивных
+        for (int i = 0; i < MAX_PLAYER_BULLETS; i++) {
+            player_bullets[i] = Bullet_player(0, 0, 0, 0, false, nullptr);
+        }
+        for (int i = 0; i < MAX_ENEMY_BULLETS; i++) {
+            enemy_bullets[i] = Bullet_enemy(0, 0, 0, 0, false, nullptr, nullptr);
+        }
+    }
+    
+    // Создание пули игрока
+    bool createPlayerBullet(uint8_t x_cell, uint8_t x, uint8_t y, uint8_t speed, Play_field* field) {
+        for (int i = 0; i < MAX_PLAYER_BULLETS; i++) {
+            if (!player_bullets[i].active) {
+                player_bullets[i] = Bullet_player(x_cell, x, y, speed, true, field);
+                return true;
+            }
+        }
+        return false; // Все слоты заняты
+    }
+    
+    // Создание пули врага
+    bool createEnemyBullet(uint8_t x_cell, uint8_t x, uint8_t y, uint8_t speed, Play_field* field, Player* player) {
+        for (int i = 0; i < MAX_ENEMY_BULLETS; i++) {
+            if (!enemy_bullets[i].active) {
+                enemy_bullets[i] = Bullet_enemy(x_cell, x, y, speed, true, field, player);
+                return true;
+            }
+        }
+        return false; // Все слоты заняты
+    }
+    
+    // Обновление всех пуль
+    void updateAllBullets() {
+        // Пули игрока
+        for (int i = 0; i < MAX_PLAYER_BULLETS; i++) {
+            if (player_bullets[i].active) {
+                player_bullets[i].move();
+                player_bullets[i].show();
+            }
+        }
+        
+        // Пули врагов
+        for (int i = 0; i < MAX_ENEMY_BULLETS; i++) {
+            if (enemy_bullets[i].active) {
+                enemy_bullets[i].move();
+                enemy_bullets[i].show();
+            }
+        }
+    }
+    
+    // Получить количество активных пуль игрока
+    uint8_t getActivePlayerBullets() {
+        uint8_t count = 0;
+        for (int i = 0; i < MAX_PLAYER_BULLETS; i++) {
+            if (player_bullets[i].active) count++;
+        }
+        return count;
+    }
+    
+    // Очистка всех пуль 
+    void clearAllBullets() {
+        for (int i = 0; i < MAX_PLAYER_BULLETS; i++) {
+            player_bullets[i].destroy();
+        }
+        for (int i = 0; i < MAX_ENEMY_BULLETS; i++) {
+            enemy_bullets[i].destroy();
+        }
     }
 };
 
 class Bullet_player {
 private:
     uint8_t x_cell;/*присваивается при вытсреле и не меняет траектории*/
+    uint8_t x;
     uint8_t y;
     uint8_t speed;
     bool active;
@@ -286,8 +406,8 @@ private:
     Play_field *field; 
 
 public:
-    Bullet_player(uint8_t x_cell, uint8_t y, uint8_t speed, bool active, Play_field *field = nullptr)
-    : x_cell(x_cell), y(y), speed(speed), active(active), field(field) {}
+    Bullet_player(uint8_t x_cell, uint8_t x, uint8_t y, uint8_t speed, bool active, Play_field *field = nullptr)
+    : x_cell(x_cell), x(x), y(y), speed(speed), active(active), field(field) {}
 
     void check_cell() {
         if (!active) return;
@@ -304,7 +424,7 @@ public:
 
     void show() {
         if (!active) return;
-        u8g2.drawXBMP(x_cell, y, 8, 8, EMO_PLAYER);
+        u8g2.drawXBMP(x, y, 8, 8, EMO_PLAYER);
     }
 
     void move() {
@@ -324,6 +444,7 @@ public:
 class Bullet_enemy {
 private:
     uint8_t x_cell;/*присваивается при вытсреле и не меняет траектории*/
+    uint8_t x;
     uint8_t y;
     uint8_t speed;
     bool active;
@@ -332,8 +453,8 @@ private:
     Player *player;
 
 public:
-    Bullet_enemy(uint8_t x_cell, uint8_t y, uint8_t speed, bool active, Play_field *field = nullptr, Player *player_ptr = nullptr)
-    : x_cell(x_cell), y(y), speed(speed), active(active), field(field), player(player_ptr) {}
+    Bullet_enemy(uint8_t x_cell, uint8_t x, uint8_t y, uint8_t speed, bool active, Play_field *field = nullptr, Player *player_ptr = nullptr)
+    : x_cell(x_cell), x(x), y(y), speed(speed), active(active), field(field), player(player_ptr) {}
 
     void check_cell() {
         if (!active) return;
@@ -369,3 +490,4 @@ public:
 int main(void) {
     return 0;
 }
+
